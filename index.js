@@ -17,26 +17,35 @@ const bybit = new RestClientV5({
 async function executeTrade(
   symbol,
   side,
+  price,
   stopLoss,
   takeProfit,
   riskPercentage
 ) {
   try {
+    // Make sure that the side variable is capitalized
+    side = side.charAt(0).toUpperCase() + side.slice(1).toLowerCase();
+
     // Step 1: Get current price to calculate position size
-    const tickerResponse = await bybit.getTickers({
-      category: "linear",
-      baseCoin: "USDT",
-      symbol: symbol,
-    });
-    const currentPrice = parseFloat(tickerResponse.result.list[0].lastPrice);
+    let entryPrice;
+    if (price) {
+      entryPrice = price;
+    } else {
+      const tickerResponse = await bybit.getTickers({
+        category: "linear",
+        baseCoin: "USDT",
+        symbol: symbol,
+      });
+      entryPrice = parseFloat(tickerResponse.result.list[0].lastPrice);
+    }
 
     if (
       (side.toLowerCase() === "buy" &&
-        (parseFloat(stopLoss) > currentPrice ||
-          parseFloat(takeProfit) < currentPrice)) ||
+        (parseFloat(stopLoss) > entryPrice ||
+          parseFloat(takeProfit) < entryPrice)) ||
       (side.toLowerCase() === "sell" &&
-        (parseFloat(stopLoss) < currentPrice ||
-          parseFloat(takeProfit) > currentPrice))
+        (parseFloat(stopLoss) < entryPrice ||
+          parseFloat(takeProfit) > entryPrice))
     ) {
       console.error(
         `Incorrect stop loss or take profit values for side "${side}". Exiting...`
@@ -57,21 +66,19 @@ async function executeTrade(
     const riskAmount = balance * (riskPercentage / 100); // Risk percentage of the balance
 
     // Step 4: Calculate stop loss percentage
-    const distanceToStoploss = Math.abs(
-      (currentPrice - stopLoss) / currentPrice
-    );
+    const distanceToStoploss = Math.abs((entryPrice - stopLoss) / entryPrice);
 
     // Step 5: Calculate position size
     const positionSize = (riskAmount / distanceToStoploss).toFixed(0);
 
     // Step 5: Calculate quantity
-    const quantity = (positionSize / currentPrice).toFixed(3);
+    const quantity = (positionSize / entryPrice).toFixed(3);
 
     // Step 6: Print trade information
     console.log(`\nCalculated Trade Details`);
     console.table([
       { Key: "Side", Value: side },
-      { Key: "Current Price", Value: currentPrice },
+      { Key: "Entry Price", Value: entryPrice },
       { Key: "Stop Loss", Value: stopLoss },
       { Key: "Take Profit", Value: takeProfit },
       { Key: "Risk Percentage", Value: `${riskPercentage}%` },
@@ -97,15 +104,21 @@ async function executeTrade(
         }
 
         // Step 6: Open position
-        const orderResult = await bybit.submitOrder({
-          orderType: "Market",
+        const orderParams = {
+          orderType: price ? "Limit" : "Market",
           category: "linear",
           symbol: `${symbol}`,
           qty: `${quantity}`,
           side: `${side}`,
           stopLoss: `${stopLoss}`,
           takeProfit: `${takeProfit}`,
-        });
+        };
+
+        if (price) {
+          orderParams.price = `${entryPrice}`;
+        }
+
+        const orderResult = await bybit.submitOrder(orderParams);
 
         console.log(
           `Order with id ${orderResult.result.orderId} submitted successully.`
@@ -129,6 +142,11 @@ const argv = yargs(hideBin(process.argv))
     demandOption: true,
     description: "Trade side: Buy or Sell",
   })
+  .option("price", {
+    type: "number",
+    demandOption: false,
+    description: "Limit order price",
+  })
   .option("stopLoss", {
     type: "number",
     demandOption: true,
@@ -149,6 +167,7 @@ const argv = yargs(hideBin(process.argv))
 executeTrade(
   argv.symbol,
   argv.side,
+  argv.price,
   argv.stopLoss,
   argv.takeProfit,
   argv.riskPercentage
