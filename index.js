@@ -78,9 +78,9 @@ async function executeTrade(
     console.log(`\nCalculated Trade Details`);
     console.table([
       { Key: "Side", Value: side },
-      { Key: "Entry Price", Value: entryPrice },
-      { Key: "Stop Loss", Value: stopLoss },
-      { Key: "Take Profit", Value: takeProfit },
+      { Key: "Entry Price", Value: `${entryPrice}` },
+      { Key: "Stop Loss", Value: `${stopLoss}` },
+      { Key: "Take Profit", Value: `${takeProfit}` },
       { Key: "Risk Percentage", Value: `${riskPercentage}%` },
       { Key: "Risk Amount", Value: `${riskAmount.toFixed(2)} USDT` },
       { Key: "Position Size", Value: `${positionSize} USDT` },
